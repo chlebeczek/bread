@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Bread Messenger | Requests & PFP</title>
+    <style>
+        :root { --gold: #D2B48C; --brown: #8B4513; --dark: #121212; --bot: #6F4E37; --bg: #000; --ohio: #4b0082; }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { margin: 0; background: var(--bg); color: white; font-family: sans-serif; height: 100vh; overflow: hidden; }
+
+        /* Auth Screen */
+        #auth-screen { position: fixed; inset: 0; background: #111; display: flex; align-items: center; justify-content: center; z-index: 2000; padding: 20px; }
+        .box { background: #222; padding: 25px; border-radius: 25px; border: 1px solid var(--brown); width: 100%; max-width: 350px; text-align: center; }
+        
+        /* PFP Adder */
+        .pfp-container { position: relative; width: 90px; height: 90px; margin: 0 auto 15px; }
+        #pfp-preview { width: 90px; height: 90px; border-radius: 50%; object-fit: cover; background: #333; border: 2px solid var(--gold); }
+        .pfp-label { position: absolute; bottom: 0; right: 0; background: var(--brown); color: white; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; border: 2px solid #222; font-weight: bold; }
+
+        input { width: 100%; padding: 12px; margin: 8px 0; border-radius: 12px; border: 1px solid #444; background: #111; color: white; font-size: 16px; outline: none; }
+        .btn { width: 100%; padding: 12px; border-radius: 30px; border: none; background: var(--brown); color: white; cursor: pointer; font-weight: bold; margin-top: 10px; }
+
+        /* Request Modal */
+        #req-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.95); display: none; align-items: center; justify-content: center; z-index: 3000; padding: 20px; }
+
+        /* App Layout */
+        #app { display: none; height: 100vh; width: 100vw; display: flex; }
+        #sidebar { width: 320px; background: #181818; border-right: 1px solid #333; display: flex; flex-direction: column; transition: 0.3s; }
+        .pfp-small { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; background: #444; }
+        
+        .friend-item { padding: 12px 15px; border-bottom: 1px solid #222; display: flex; align-items: center; gap: 12px; cursor: pointer; }
+        .friend-item.active { background: #2a2a2a; border-left: 4px solid var(--gold); }
+
+        #chat-window { flex: 1; display: flex; flex-direction: column; background: var(--bg); }
+        #messages { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 10px; }
+        .msg { padding: 12px; border-radius: 15px; max-width: 80%; font-size: 14px; }
+        .msg.me { align-self: flex-end; background: var(--brown); }
+        .msg.other { align-self: flex-start; background: #333; }
+        .msg.ohio-style { align-self: flex-start; background: var(--ohio); animation: shake 0.2s infinite; border: 1px solid white; }
+
+        @keyframes shake { 0% { transform: translate(1px, 1px); } 50% { transform: translate(-1px, -1px); } 100% { transform: translate(1px, -1px); } }
+        @media (max-width: 768px) { #sidebar { position: absolute; z-index: 1000; width: 100%; height: 100%; } .hidden { transform: translateX(-100%); } }
+    </style>
+</head>
+<body>
+
+    <div id="auth-screen">
+        <div class="box">
+            <h1>🍞 Bread</h1>
+            <div class="pfp-container">
+                <img id="pfp-preview" src="https://ui-avatars.com/api/?name=?&background=333&color=fff">
+                <label for="pfpInput" class="pfp-label">+</label>
+                <input type="file" id="pfpInput" accept="image/*" style="display:none" onchange="processPFP(this)">
+            </div>
+            <input type="text" id="uName" placeholder="Username">
+            <input type="password" id="uPass" placeholder="Password">
+            <button class="btn" onclick="handleAuth()">Login / Register</button>
+        </div>
+    </div>
+
+    <div id="req-modal">
+        <div class="box">
+            <h3 style="color:var(--gold)">Add Friends</h3>
+            <input type="text" id="targetInput" placeholder="Enter username...">
+            <button class="btn" onclick="sendFriendRequest()">Send Request</button>
+            <div id="incoming-list" style="margin-top:20px; text-align:left;"></div>
+            <button class="btn" style="background:#444" onclick="toggleModal(false)">Close</button>
+        </div>
+    </div>
+
+    <div id="app">
+        <div id="sidebar">
+            <div style="padding:15px; border-bottom:1px solid #333;">
+                <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+                    <img id="my-pfp" class="pfp-small">
+                    <b id="display-name" style="flex:1">User</b>
+                    <button onclick="toggleModal(true)" style="background:none; border:none; color:var(--gold); font-size:22px; cursor:pointer;">✉️</button>
+                    <button onclick="location.reload()" style="background:none; border:none; font-size:18px;">🔄</button>
+                </div>
+                <button class="btn" onclick="toggleOhio()" style="background:var(--ohio); font-size:10px; padding:5px;">Ohio Mode: OFF</button>
+            </div>
+            <div id="social-list" style="overflow-y:auto; flex:1;"></div>
+        </div>
+
+        <div id="chat-window">
+            <div style="padding:15px; background:#1a1a1a; display:flex; align-items:center;">
+                <button onclick="toggleSidebar()" style="background:none; border:none; color:white; font-size:20px; margin-right:15px;">☰</button>
+                <b id="active-chat-name">Bread Messenger</b>
+            </div>
+            <div id="messages"></div>
+            <div style="padding:15px; background:#111; display:flex; gap:10px;">
+                <input type="text" id="msgInput" placeholder="Message..." style="flex:1" onkeypress="if(event.key==='Enter') send()">
+                <button onclick="send()" class="btn" style="width:60px; padding:0; margin:0;">🍞</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentUser = null;
+        let activeTarget = "a failed coffee :D";
+        let isOhio = false;
+        let pfpData = "";
+
+        function processPFP(i) {
+            if (i.files && i.files[0]) {
+                const r = new FileReader();
+                r.onload = (e) => { pfpData = e.target.result; document.getElementById('pfp-preview').src = pfpData; };
+                r.readAsDataURL(i.files[0]);
+            }
+        }
+
+        function toggleSidebar() { document.getElementById('sidebar').classList.toggle('hidden'); }
+        function toggleModal(s) { document.getElementById('req-modal').style.display = s ? 'flex' : 'none'; if(s) renderIncoming(); }
+
+        function handleAuth() {
+            const name = document.getElementById('uName').value.trim();
+            const pass = document.getElementById('uPass').value;
+            if(!name) return;
+            const saved = localStorage.getItem(`bread_v11_${name}`);
+            if(saved) {
+                currentUser = JSON.parse(saved);
+                if(currentUser.pass !== pass) return alert("Wrong pass!");
+            } else {
+                currentUser = { name, pass, pfp: pfpData, friends: ["a failed coffee :D"], history: {}, requests: [] };
+                save();
+            }
+            document.getElementById('auth-screen').style.display = 'none';
+            document.getElementById('app').style.display = 'flex';
+            document.getElementById('display-name').innerText = currentUser.name;
+            document.getElementById('my-pfp').src = currentUser.pfp || `https://ui-avatars.com/api/?name=${name}`;
+            selectChat("a failed coffee :D");
+            renderFriends();
+        }
+
+        function sendFriendRequest() {
+            const target = document.getElementById('targetInput').value.trim();
+            const raw = localStorage.getItem(`bread_v11_${target}`);
+            if(!raw) return alert("User not found!");
+            let parsed = JSON.parse(raw);
+            if(!parsed.requests.includes(currentUser.name)) {
+                parsed.requests.push(currentUser.name);
+                localStorage.setItem(`bread_v11_${target}`, JSON.stringify(parsed));
+                alert("Sent!");
+            }
+        }
+
+        function renderIncoming() {
+            const list = document.getElementById('incoming-list');
+            list.innerHTML = currentUser.requests.map(r => `
+                <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+                    <span>${r}</span>
+                    <button onclick="acceptFriend('${r}')" style="color:var(--gold); background:none; border:1px solid; padding:2px 8px; border-radius:10px;">Accept</button>
+                </div>`).join('') || "No requests.";
+        }
+
+        function acceptFriend(n) {
+            currentUser.friends.push(n);
+            currentUser.requests = currentUser.requests.filter(x => x !== n);
+            save(); renderFriends(); toggleModal(false);
+        }
+
+        function toggleOhio() {
+            isOhio = !isOhio;
+            if(isOhio && !currentUser.friends.includes("Ohio")) currentUser.friends.push("Ohio");
+            else if(!isOhio) currentUser.friends = currentUser.friends.filter(f => f !== "Ohio");
+            save(); renderFriends();
+        }
+
+        function renderFriends() {
+            const list = document.getElementById('social-list');
+            list.innerHTML = currentUser.friends.map(f => {
+                const img = f === "Ohio" ? "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcR_x1y3q7Tf2XQYVf3fV1-Q" : `https://ui-avatars.com/api/?name=${f}&background=random`;
+                return `<div class="friend-item ${activeTarget === f ? 'active' : ''}" onclick="selectChat('${f}')">
+                    <img class="pfp-small" src="${img}">
+                    <b>${f}</b>
+                </div>`;
+            }).join('');
+        }
+
+        function selectChat(n) {
+            activeTarget = n;
+            document.getElementById('active-chat-name').innerText = n;
+            renderFriends(); renderMessages();
+            if(window.innerWidth < 768) document.getElementById('sidebar').classList.add('hidden');
+        }
+
+        function send() {
+            const inp = document.getElementById('msgInput');
+            if(!inp.value || !activeTarget) return;
+            const text = inp.value;
+            if(!currentUser.history[activeTarget]) currentUser.history[activeTarget] = [];
+            currentUser.history[activeTarget].push({sender: 'me', text: text});
+            inp.value = "";
+            renderMessages();
+            
+            if(activeTarget === "Ohio") {
+                setTimeout(() => { currentUser.history["Ohio"].push({sender: 'ohio', text: "Ohio Rizz 💀"}); renderMessages(); save(); }, 500);
+            } else if (isOhio) {
+                setTimeout(() => { currentUser.history[activeTarget].push({sender: 'ohio', text: text + " (In Ohio 💀)"}); renderMessages(); save(); }, 400);
+            } else if (activeTarget === "a failed coffee :D") {
+                setTimeout(() => { currentUser.history[activeTarget].push({sender: 'other', text: "Lukewarm response... :D"}); renderMessages(); save(); }, 600);
+            }
+            save();
+        }
+
+        function renderMessages() {
+            const box = document.getElementById('messages');
+            box.innerHTML = (currentUser.history[activeTarget] || []).map(m => `
+                <div class="msg ${m.sender === 'me' ? 'me' : (m.sender === 'ohio' ? 'ohio-style' : 'other')}">${m.text}</div>
+            `).join('');
+            box.scrollTop = box.scrollHeight;
+        }
+
+        function save() { localStorage.setItem(`bread_v11_${currentUser.name}`, JSON.stringify(currentUser)); }
+    </script>
+</body>
+</html>
